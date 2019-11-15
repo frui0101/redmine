@@ -136,6 +136,12 @@ RUN set -eux; \
 	; \
 	apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false
 
+RUN cd /usr/src/redmine/plugins && \
+    git clone https://github.com/frui0101/redmine_dashboard.git && \
+    git clone https://github.com/frui0101/redmine_gitlab_hook.git
+
+RUN apt-get update;apt-get install -y gcc make; gosu redmine bundle install --jobs "$(nproc)" --without development test
+
 VOLUME /usr/src/redmine/files
 
 COPY docker-entrypoint.sh /
