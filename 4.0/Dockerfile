@@ -9,22 +9,6 @@ COPY use_aliyun_source.sh /tmp/use_aliyun_source.sh
 RUN . /tmp/use_aliyun_source.sh
 
 RUN set -eux; \
-	apt-get update; \
-	apt-get install -y --no-install-recommends \
-		ca-certificates \
-		wget \
-		bzr \
-		git \
-		mercurial \
-		openssh-client \
-		subversion \
-		\
-# https://github.com/docker-library/redmine/issues/132
-# (without "gsfonts" we get "Magick::ImageMagickError (non-conforming drawing primitive definition `text' @ error/draw.c/DrawImage/3265):")
-		gsfonts \
-		imagemagick
-
-RUN set -eux; \
 	dpkgArch="$(dpkg --print-architecture | awk -F- '{ print $NF }')"; \
 	\
 # grab gosu for easy step-down from root
@@ -33,17 +17,16 @@ RUN set -eux; \
 	wget -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch"; \
 	wget -O /usr/local/bin/gosu.asc "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch.asc"; \
 	chmod +x /usr/local/bin/gosu; \
-	gosu nobody true; \
-	\
+	gosu nobody true
+
+RUN set -eux; \
 # grab tini for signal processing and zombie killing
 # https://github.com/krallin/tini/releases
 	export TINI_VERSION='0.18.0'; \
 	wget -O /usr/local/bin/tini "https://github.com/krallin/tini/releases/download/v$TINI_VERSION/tini-$dpkgArch"; \
 	wget -O /usr/local/bin/tini.asc "https://github.com/krallin/tini/releases/download/v$TINI_VERSION/tini-$dpkgArch.asc"; \
 	chmod +x /usr/local/bin/tini; \
-	tini -h; \
-	\
-	apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false
+	tini -h
 
 ENV RAILS_ENV production
 WORKDIR /usr/src/redmine
