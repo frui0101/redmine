@@ -20,6 +20,8 @@ RUN set -eux; \
 	gosu nobody true
 
 RUN set -eux; \
+	dpkgArch="$(dpkg --print-architecture | awk -F- '{ print $NF }')"; \
+	\
 # grab tini for signal processing and zombie killing
 # https://github.com/krallin/tini/releases
 	export TINI_VERSION='0.18.0'; \
