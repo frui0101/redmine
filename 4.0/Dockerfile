@@ -4,6 +4,9 @@ FROM ruby:2.6-slim-buster
 # the values 999:999 are identical to the current user/group id assigned
 RUN groupadd -r -g 999 redmine && useradd -r -g redmine -u 999 redmine
 
+COPY use_aliyun_source.sh /tmp/use_aliyun_source.sh
+RUN . /tmp/use_aliyun_source.sh
+
 RUN set -eux; \
 	apt-get update; \
 	apt-get install -y --no-install-recommends \
@@ -19,9 +22,7 @@ RUN set -eux; \
 # https://github.com/docker-library/redmine/issues/132
 # (without "gsfonts" we get "Magick::ImageMagickError (non-conforming drawing primitive definition `text' @ error/draw.c/DrawImage/3265):")
 		gsfonts \
-		imagemagick \
-	; \
-	rm -rf /var/lib/apt/lists/*
+		imagemagick
 
 RUN set -eux; \
 	savedAptMark="$(apt-mark showmanual)"; \
@@ -30,8 +31,6 @@ RUN set -eux; \
 		dirmngr \
 		gnupg \
 	; \
-	rm -rf /var/lib/apt/lists/*; \
-	\
 	dpkgArch="$(dpkg --print-architecture | awk -F- '{ print $NF }')"; \
 	\
 # grab gosu for easy step-down from root
@@ -84,7 +83,8 @@ RUN set -eux; \
 	wget -O redmine.tar.gz "https://www.redmine.org/releases/redmine-${REDMINE_VERSION}.tar.gz"; \
 	echo "$REDMINE_DOWNLOAD_MD5 *redmine.tar.gz" | md5sum -c -; \
 	tar -xf redmine.tar.gz --strip-components=1; \
-	rm redmine.tar.gz files/delete.me log/delete.me; \
+        mv redmine.tar.gz /var/; \
+	rm files/delete.me log/delete.me; \
 	mkdir -p log public/plugin_assets sqlite tmp/pdf tmp/pids; \
 	chown -R redmine:redmine ./; \
 # log to STDOUT (https://github.com/docker-library/redmine/issues/108)
@@ -102,16 +102,12 @@ RUN set -eux; \
 		gcc \
 		libmagickcore-dev \
 		libmagickwand-dev \
-		libmariadbclient-dev \
 		libpq-dev \
-		libsqlite3-dev \
 		make \
 		patch \
 	; \
-	rm -rf /var/lib/apt/lists/*; \
-	\
 	gosu redmine bundle install --jobs "$(nproc)" --without development test; \
-	for adapter in mysql2 postgresql sqlserver sqlite3; do \
+	for adapter in postgresql; do \
 		echo "$RAILS_ENV:" > ./config/database.yml; \
 		echo "  adapter: $adapter" >> ./config/database.yml; \
 		gosu redmine bundle install --jobs "$(nproc)" --without development test; \
@@ -141,6 +137,7 @@ RUN cd /usr/src/redmine/plugins && \
     git clone https://github.com/frui0101/redmine_gitlab_hook.git
 
 RUN apt-get update;apt-get install -y gcc make; gosu redmine bundle install --jobs "$(nproc)" --without development test
+RUN rm -rf /var/lib/apt/lists/*
 
 VOLUME /usr/src/redmine/files
 
