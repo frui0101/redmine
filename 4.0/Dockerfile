@@ -15,7 +15,7 @@ RUN set -eux; \
 # https://github.com/tianon/gosu/releases
 	export GOSU_VERSION='1.11'; \
 	wget -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch"; \
-	wget -O /usr/local/bin/gosu.asc "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch.asc"; \
+	#wget -O /usr/local/bin/gosu.asc "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch.asc"; \
 	chmod +x /usr/local/bin/gosu; \
 	gosu nobody true
 
@@ -24,7 +24,7 @@ RUN set -eux; \
 # https://github.com/krallin/tini/releases
 	export TINI_VERSION='0.18.0'; \
 	wget -O /usr/local/bin/tini "https://github.com/krallin/tini/releases/download/v$TINI_VERSION/tini-$dpkgArch"; \
-	wget -O /usr/local/bin/tini.asc "https://github.com/krallin/tini/releases/download/v$TINI_VERSION/tini-$dpkgArch.asc"; \
+	#wget -O /usr/local/bin/tini.asc "https://github.com/krallin/tini/releases/download/v$TINI_VERSION/tini-$dpkgArch.asc"; \
 	chmod +x /usr/local/bin/tini; \
 	tini -h
 
@@ -66,12 +66,16 @@ RUN set -eux; \
 		gcc \
 		libmagickcore-dev \
 		libmagickwand-dev \
+		libmariadbclient-dev \
 		libpq-dev \
+		libsqlite3-dev \
 		make \
 		patch \
 	; \
+	rm -rf /var/lib/apt/lists/*; \
+	\
 	gosu redmine bundle install --jobs "$(nproc)" --without development test; \
-	for adapter in postgresql; do \
+	for adapter in mysql2 postgresql sqlserver sqlite3; do \
 		echo "$RAILS_ENV:" > ./config/database.yml; \
 		echo "  adapter: $adapter" >> ./config/database.yml; \
 		gosu redmine bundle install --jobs "$(nproc)" --without development test; \
