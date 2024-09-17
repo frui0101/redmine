@@ -1,69 +1,34 @@
-FROM ruby:2.6-slim-buster
+FROM ruby:2.6-buster
 
 # explicitly set uid/gid to guarantee that it won't change in the future
 # the values 999:999 are identical to the current user/group id assigned
 RUN groupadd -r -g 999 redmine && useradd -r -g redmine -u 999 redmine
 
-RUN set -eux; \
-	apt-get update; \
-	apt-get install -y --no-install-recommends \
-		ca-certificates \
-		wget \
-		\
-		bzr \
-		git \
-		mercurial \
-		openssh-client \
-		subversion \
-		\
-# https://github.com/docker-library/redmine/issues/132
-# (without "gsfonts" we get "Magick::ImageMagickError (non-conforming drawing primitive definition `text' @ error/draw.c/DrawImage/3265):")
-		gsfonts \
-		imagemagick \
-	; \
-	rm -rf /var/lib/apt/lists/*
+RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 3B4FE6ACC0B21F32
+COPY use_aliyun_source.sh /tmp/use_aliyun_source.sh
+RUN . /tmp/use_aliyun_source.sh
 
 RUN set -eux; \
-	savedAptMark="$(apt-mark showmanual)"; \
-	apt-get update; \
-	apt-get install -y --no-install-recommends \
-		dirmngr \
-		gnupg \
-	; \
-	rm -rf /var/lib/apt/lists/*; \
-	\
 	dpkgArch="$(dpkg --print-architecture | awk -F- '{ print $NF }')"; \
 	\
 # grab gosu for easy step-down from root
 # https://github.com/tianon/gosu/releases
 	export GOSU_VERSION='1.11'; \
 	wget -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch"; \
-	wget -O /usr/local/bin/gosu.asc "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch.asc"; \
-	export GNUPGHOME="$(mktemp -d)"; \
-	gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4; \
-	gpg --batch --verify /usr/local/bin/gosu.asc /usr/local/bin/gosu; \
-	gpgconf --kill all; \
-	rm -r "$GNUPGHOME" /usr/local/bin/gosu.asc; \
+	#wget -O /usr/local/bin/gosu.asc "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch.asc"; \
 	chmod +x /usr/local/bin/gosu; \
-	gosu nobody true; \
+	gosu nobody true
+
+RUN set -eux; \
+	dpkgArch="$(dpkg --print-architecture | awk -F- '{ print $NF }')"; \
 	\
 # grab tini for signal processing and zombie killing
 # https://github.com/krallin/tini/releases
 	export TINI_VERSION='0.18.0'; \
 	wget -O /usr/local/bin/tini "https://github.com/krallin/tini/releases/download/v$TINI_VERSION/tini-$dpkgArch"; \
-	wget -O /usr/local/bin/tini.asc "https://github.com/krallin/tini/releases/download/v$TINI_VERSION/tini-$dpkgArch.asc"; \
-	export GNUPGHOME="$(mktemp -d)"; \
-	gpg --batch --keyserver ha.pool.sks-keyservers.net --recv-keys 6380DC428747F6C393FEACA59A84159D7001A4E5; \
-	gpg --batch --verify /usr/local/bin/tini.asc /usr/local/bin/tini; \
-	gpgconf --kill all; \
-	rm -r "$GNUPGHOME" /usr/local/bin/tini.asc; \
+	#wget -O /usr/local/bin/tini.asc "https://github.com/krallin/tini/releases/download/v$TINI_VERSION/tini-$dpkgArch.asc"; \
 	chmod +x /usr/local/bin/tini; \
-	tini -h; \
-	\
-# reset apt-mark's "manual" list so that "purge --auto-remove" will remove all build dependencies
-	apt-mark auto '.*' > /dev/null; \
-	[ -z "$savedAptMark" ] || apt-mark manual $savedAptMark; \
-	apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false
+	tini -h
 
 ENV RAILS_ENV production
 WORKDIR /usr/src/redmine
@@ -84,7 +49,8 @@ RUN set -eux; \
 	wget -O redmine.tar.gz "https://www.redmine.org/releases/redmine-${REDMINE_VERSION}.tar.gz"; \
 	echo "$REDMINE_DOWNLOAD_MD5 *redmine.tar.gz" | md5sum -c -; \
 	tar -xf redmine.tar.gz --strip-components=1; \
-	rm redmine.tar.gz files/delete.me log/delete.me; \
+        mv redmine.tar.gz /var/; \
+	rm files/delete.me log/delete.me; \
 	mkdir -p log public/plugin_assets sqlite tmp/pdf tmp/pids; \
 	chown -R redmine:redmine ./; \
 # log to STDOUT (https://github.com/docker-library/redmine/issues/108)
@@ -135,6 +101,13 @@ RUN set -eux; \
 		| xargs -r apt-mark manual \
 	; \
 	apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false
+
+RUN cd /usr/src/redmine/plugins && \
+    git clone https://github.com/frui0101/redmine_dashboard.git && \
+    git clone https://github.com/frui0101/redmine_gitlab_hook.git
+
+RUN apt-get update;apt-get install -y gcc make; gosu redmine bundle install --jobs "$(nproc)" --without development test
+RUN rm -rf /var/lib/apt/lists/*
 
 VOLUME /usr/src/redmine/files
 
